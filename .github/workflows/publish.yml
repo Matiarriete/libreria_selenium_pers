@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
+      contents: write
 
     steps:
       - name: Checkout code
@@ -19,6 +20,36 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+
+      - name: Bump version in setup.py
+        run: |
+          python - <<'EOF'
+          import re
+          path = "setup.py"
+          with open(path) as f:
+              content = f.read()
+          m = re.search(r'(version\s*=\s*")(\d+\.\d+)(\.\d+)?(")', content)
+          if not m:
+              raise SystemExit("No se encontró la versión en setup.py")
+          core = m.group(2)
+          patch = m.group(3)
+          if patch:
+              new_ver = f"{core}.{int(patch[1:]) + 1}"
+          else:
+              new_ver = f"{core}.1"
+          content = content.replace(m.group(0), f"{m.group(1)}{new_ver}{m.group(4)}", 1)
+          with open(path, "w") as f:
+              f.write(content)
+          print(f"Nueva versión: {new_ver}")
+          EOF
+
+      - name: Commit and push version bump
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add setup.py
+          git commit -m "Bump version [skip ci]"
+          git push
 
       - name: Install build
         run: python -m pip install --upgrade build
